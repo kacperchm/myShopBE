@@ -1,5 +1,6 @@
 package com.kchmura.auth.services;
 
+import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.io.Decoders;
@@ -16,15 +17,13 @@ import java.util.Map;
 public class JwtService {
 
     public final String SECRET;
-    public final int EXP;
 
-    public JwtService(@Value("${jwt.secret}")String SECRET, @Value("${jwt.exp}") int EXP) {
+    public JwtService(@Value("${jwt.secret}") String SECRET){
         this.SECRET = SECRET;
-        this.EXP = EXP;
     }
 
-    public void validateToken(final String token) {
-        Jwts.parserBuilder().setSigningKey(getSignKey()).build().parseClaimsJwt(token);
+    public void validateToken(final String token) throws ExpiredJwtException, IllegalArgumentException {
+        Jwts.parserBuilder().setSigningKey(getSignKey()).build().parseClaimsJws(token);
     }
 
     private Key getSignKey() {
@@ -32,18 +31,18 @@ public class JwtService {
         return Keys.hmacShaKeyFor(keyBytes);
     }
 
-    public String generateToken(String username) {
+    public String generateToken(String username,int exp){
         Map<String, Object> claims = new HashMap<>();
-        return createToken(claims, username);
+        return createToken(claims,username,exp);
     }
 
-    private String createToken(Map<String, Object> claims, String username) {
+    public String createToken(Map<String,Object> claims, String username,int exp){
 
         return Jwts.builder()
                 .setClaims(claims)
                 .setSubject(username)
                 .setIssuedAt(new Date(System.currentTimeMillis()))
-                .setExpiration(new Date(System.currentTimeMillis() + EXP))
+                .setExpiration(new Date(System.currentTimeMillis() + exp))
                 .signWith(getSignKey(), SignatureAlgorithm.HS256)
                 .compact();
     }
