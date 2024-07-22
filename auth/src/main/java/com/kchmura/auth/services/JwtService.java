@@ -46,4 +46,19 @@ public class JwtService {
                 .signWith(getSignKey(), SignatureAlgorithm.HS256)
                 .compact();
     }
+
+    public String refreshToken(final String token, int exp) {
+        String username = getSubject(token);
+        return  generateToken(username, exp);
+    }
+
+    private String getSubject(final String token) {
+        return Jwts
+                .parserBuilder()
+                .setSigningKey(getSignKey())
+                .build()
+                .parseClaimsJwt(token)
+                .getBody()
+                .getSubject();
+    }
 }

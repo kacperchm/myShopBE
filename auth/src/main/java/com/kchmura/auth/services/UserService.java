@@ -1,6 +1,8 @@
 package com.kchmura.auth.services;
 
 import com.kchmura.auth.entity.*;
+import com.kchmura.auth.exceptions.UserExistingWithEmail;
+import com.kchmura.auth.exceptions.UserExistingWithName;
 import com.kchmura.auth.repository.UserRepository;
 import io.jsonwebtoken.ExpiredJwtException;
 import jakarta.servlet.http.Cookie;
@@ -42,25 +44,42 @@ public class UserService {
         return jwtService.generateToken(username, exp);
     }
 
-    public void validateToken(HttpServletRequest request) throws ExpiredJwtException, IllegalArgumentException {
+    public void validateToken(HttpServletRequest request, HttpServletResponse response) throws ExpiredJwtException, IllegalArgumentException {
         String token = null;
         String refresh = null;
-        for (Cookie value : Arrays.stream(request.getCookies()).toList()) {
-            if (value.getName().equals("token")) {
-                token = value.getValue();
-            } else if (value.getName().equals("refresh")) {
-                refresh = value.getValue();
+        if (request.getCookies() != null) {
+            for (Cookie value : Arrays.stream(request.getCookies()).toList()) {
+                if (value.getName().equals("token")) {
+                    token = value.getValue();
+                } else if (value.getName().equals("refresh")) {
+                    refresh = value.getValue();
+                }
             }
+        } else {
+            throw new IllegalArgumentException("Token can't be null");
         }
         try {
             jwtService.validateToken(token);
         } catch (IllegalArgumentException | ExpiredJwtException e) {
             jwtService.validateToken(refresh);
+            Cookie refreshCookie = cookiService.generateCookie("refresh", jwtService.refreshToken(refresh, refreshExp), refreshExp);
+            Cookie cookie = cookiService.generateCookie("Authorization", jwtService.refreshToken(refresh, exp), exp);
+            response.addCookie(cookie);
+            response.addCookie(refreshCookie);
         }
     }
 
 
-    public void register(UserRegisterDTO userDTO) {
+    public void register(UserRegisterDTO userDTO) throws UserExistingWithName, UserExistingWithEmail {
+
+        userRepository.findUserByLogin(userDTO.getLogin()).ifPresent(value -> {
+            throw new UserExistingWithName("Użytkownik o podanej nazwie już istnieje");
+        });
+
+        userRepository.findUserByEmail(userDTO.getEmail()).ifPresent(value -> {
+            throw new UserExistingWithEmail("Użytkownik o podanym mailu już istnieje");
+        });
+
         User user = new User();
         user.setLogin(userDTO.getLogin());
         user.setPassword(userDTO.getPassword());
